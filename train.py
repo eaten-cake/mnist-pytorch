@@ -8,6 +8,7 @@ from torch.optim.lr_scheduler import StepLR
 from model import ConvNet
 
 def train(args, model, device, train_loader, optimizer, epoch):
+    print("Start %d epoch" % epoch)
     model.train()
     for batch_idx, (data, target) in enumerate(train_loader):
         data, target = data.to(device), target.to(device)
@@ -17,15 +18,39 @@ def train(args, model, device, train_loader, optimizer, epoch):
         loss.backward()
         optimizer.step()
         # Print once per batch
-        print("Train Epoch: %d [%d/%d (%.0f)]\tLoss: %.6f" 
-              % 
-              (epoch, batch_idx * len(data), len(train_loader.dataset), 100. * batch_idx / len(train_loader), loss.item()))    
+        if batch_idx % args.log_interval == 0:
+            # Escape character %
+            print("Train Epoch: %d [%d/%d (%.0f%%)]\tLoss: %.6f" 
+                % 
+                (epoch, batch_idx * len(data), len(train_loader.dataset), 100. * batch_idx / len(train_loader), loss.item()))    
+
+def test(model, device, test_loader):
+    model.eval()
+    test_loss = 0
+    correct = 0
+    with torch.no_grad():
+        for data, target in test_loader:
+            data, target = data.to(device), target.to(device)
+            output = model(data)
+            # sum up batch loss
+            test_loss += F.nll_loss(output, target, reduction="sum").item()
+            # get the index of the max log-probability
+            pred = output.argmax(dim=1, keepdim=True)
+            correct += pred.eq(target.view_as(pred)).sum().item()
+    
+    test_loss /= len(test_loader.dataset)
+
+    print("\nTest set: Average loss: %.4f, Accuracy: %d/%d (%.0f%%)\n"
+          %
+          (test_loss, correct, len(test_loader.dataset), 100. * correct / len(test_loader.dataset)))
+
 
 def main():
+    # Training settings
     parser = argparse.ArgumentParser(description = "train mnist dataset setting")
-    parser.add_argument("--batch-size", type=int, default=4, metavar="N",
-                        help = "input batch size for training (default: 64)")
-    parser.add_argument("--epochs", type=int, default=10, metavar="N",
+    parser.add_argument("--batch-size", type=int, default=32, metavar="N",
+                        help = "input batch size for training (default: 32)")
+    parser.add_argument("--epochs", type=int, default=5, metavar="N",
                         help="number of epochs to train (default: 10)")
     parser.add_argument("--lr", type=float, default=1.0, metavar="LR",
                         help="learning rate (default: 1.0)")
@@ -33,6 +58,8 @@ def main():
                         help='Learning rate step gamma (default: 0.7)')
     parser.add_argument('--seed', type=int, default=1, metavar='S',
                         help='random seed (default: 1)')
+    parser.add_argument('--log-interval', type=int, default=100, metavar='N',
+                        help='how many batches to wait before logging training status')
     parser.add_argument('--save-model', action='store_true', default=False,
                         help='For Saving the current Model')
     args = parser.parse_args()
@@ -70,11 +97,10 @@ def main():
 
     scheduler = StepLR(optimizer, step_size=1, gamma=args.gamma)
 
-    print(len(train_loader))
-
-    # for epoch in range(0, args.epochs):
-    #     train(args, model, device, train_loader, optimizer, epoch)
-    #     scheduler.step()
+    for epoch in range(0, args.epochs):
+        train(args, model, device, train_loader, optimizer, epoch)
+        test(model, device, test_loader)
+        scheduler.step()
 
     if args.save_model:
         torch.save(model.state_dict(), "mnist.pt")

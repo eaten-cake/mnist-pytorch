@@ -27,3 +27,13 @@ class ConvNet(nn.Module):
         y = F.log_softmax(x, dim=1)
         return y
 
+if __name__ == "__main__":
+    model = ConvNet()
+    x = torch.rand(1, 28, 28)
+    print(x.shape)
+    conv1 = nn.Conv2d(1, 32, 3, 1)
+    conv2 = nn.Conv2d(32, 64, 3, 1)
+    x = conv1(x)
+    print(x.shape)
+    x = conv2(x)
+    print(x.shape)
